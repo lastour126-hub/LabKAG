@@ -1,0 +1,19 @@
+[project]
+name = "labkag"
+version = "0.1.0"
+requires-python = ">=3.10,<3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore:builtin type SwigPy.*:DeprecationWarning",
+    "ignore:builtin type swigvarlink.*:DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

@@ -1,0 +1,21 @@
+from enum import Enum
+
+from pydantic import BaseModel, Field
+
+
+class ErrorCode(str, Enum):
+    FILE_NOT_FOUND = "file_not_found"
+    UNSUPPORTED_FILE_TYPE = "unsupported_file_type"
+    PARSE_FAILED = "parse_failed"
+    EXTRACTION_FAILED = "extraction_failed"
+    SCHEMA_VALIDATION_FAILED = "schema_validation_failed"
+    EVIDENCE_BINDING_FAILED = "evidence_binding_failed"
+    OPENSPG_WRITE_FAILED = "openspg_write_failed"
+    KAG_QUERY_FAILED = "kag_query_failed"
+    INTERNAL_ERROR = "internal_error"
+
+
+class SkillError(BaseModel):
+    code: ErrorCode | str
+    message: str
+    detail: dict = Field(default_factory=dict)

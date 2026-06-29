@@ -1,0 +1,1 @@
+"""LabKAG application package."""
