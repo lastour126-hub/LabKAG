@@ -399,9 +399,48 @@ confidence
 reasoning_path
 ```
 
-当前状态：mock 版本。
+当前状态：第一版 Neo4j 查询闭环已完成并通过真实容器验证。
 
-要等 M5 真实入图完成后，再接真实 OpenSPG/KAG 查询能力。
+已完成：
+
+```text
+MOCK_KAG=true 时保留 mock 查询
+MOCK_KAG=false 且 OPENSPG_WRITE_BACKEND=neo4j 时走真实 Neo4j 图查询
+/v1/evidence/search 支持按 Evidence.source_text 检索
+/v1/evidence/search 支持 project_id / paper_id / top_k
+/v1/literature/query 基于匹配 Evidence 生成 answer / evidence / related_entities / reasoning_path / confidence
+查询异常统一转换为 kag_query_failed
+Cypher 查询先过滤 Evidence，再匹配 Paper，避免 paper_id/query 过滤被 OPTIONAL MATCH 放宽
+```
+
+真实闭环验证结果：
+
+```text
+Docker 恢复后，labkag-mysql / labkag-neo4j / labkag-server 均可用
+
+POST /v1/papers/ingest
+写入 m6_closed_loop_paper_001 / m6_closed_loop_ev_001
+返回 HTTP 200
+返回 entities_created=3, relations_created=3, evidence_created=1, mock=false
+
+POST /v1/evidence/search
+请求 query="95% conversion", project_id="1", paper_id="m6_closed_loop_paper_001"
+返回 HTTP 200
+返回 evidence=["m6_closed_loop_ev_001"]
+
+POST /v1/literature/query
+请求 question="95% conversion", project_id="1", paper_id="m6_closed_loop_paper_001"
+返回 HTTP 200
+返回 answer="M6 closed loop evidence reports 95% conversion for catalyst A."
+返回 evidence=["m6_closed_loop_ev_001"]
+```
+
+当前限制：
+
+```text
+第一版 answer 是基于证据原文的朴素拼接，不调用 OpenSPG 自带对话系统
+暂未接 OpenSPG 官方 /v1/datas/search 语义检索
+```
 
 ---
 
@@ -424,3 +463,43 @@ OpenSPG 本地部署说明
 ```
 
 当前状态：持续补充中。
+
+---
+
+## 2026-07-01 M7 整理更新
+
+当前状态：第一轮整理完成，已把第一版闭环沉淀成可交接资产。
+
+已补充：
+
+```text
+scripts/verify_m7_closed_loop.py
+tests/test_m7_verify_script.py
+Readme.md 本地部署、真实 Neo4j 闭环、M7 验证说明
+```
+
+M7 验证脚本覆盖：
+
+```text
+/health
+OpenSPG LabKAG 文献 schema 应用
+/v1/papers/ingest confirm=true
+/v1/evidence/search project_id + paper_id 过滤
+/v1/literature/query project_id + paper_id 过滤
+```
+
+验收命令：
+
+```powershell
+py -3.10 -m pytest -q
+py -3.10 -m ruff check .
+py -3.10 scripts\verify_m7_closed_loop.py
+```
+
+当前验证结果：
+
+```text
+pytest: 51 passed
+ruff: All checks passed
+M7 closed loop verification: passed
+```

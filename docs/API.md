@@ -179,6 +179,19 @@ found through `GET /v1/projects/list`.
 }
 ```
 
+When `MOCK_KAG=false` and `OPENSPG_WRITE_BACKEND=neo4j`, this endpoint searches
+matching `Evidence` nodes from the Neo4j graph-store and builds:
+
+```text
+answer
+related_entities
+reasoning_path
+confidence
+evidence
+```
+
+The first M6 version does not use the OpenSPG built-in dialog system.
+
 ## Search Evidence
 
 `POST /v1/evidence/search`
@@ -187,7 +200,11 @@ found through `GET /v1/projects/list`.
 {
   "query": "catalytic activity",
   "project_id": "labkag_demo",
+  "paper_id": "paper_001",
   "entity_types": ["Result"],
   "top_k": 10
 }
 ```
+
+When real KAG query is enabled, `query` matches against `Evidence.source_text`.
+`paper_id` is optional and narrows the search to one paper.

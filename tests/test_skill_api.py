@@ -205,3 +205,43 @@ def test_ingest_returns_openspg_write_failed_when_client_fails(monkeypatch):
     body = response.json()
     assert body["status"] == "failed"
     assert body["errors"][0]["code"] == "openspg_write_failed"
+
+
+def test_literature_query_returns_kag_query_failed_when_adapter_fails(monkeypatch):
+    from app.api import literature
+
+    def fail_query(*args, **kwargs):
+        raise RuntimeError("Neo4j query is not configured.")
+
+    monkeypatch.setattr(literature, "query_literature", fail_query)
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/literature/query",
+        json={"question": "What was reported?", "project_id": "1"},
+    )
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["errors"][0]["code"] == "kag_query_failed"
+
+
+def test_evidence_search_returns_kag_query_failed_when_adapter_fails(monkeypatch):
+    from app.api import evidence
+
+    def fail_search(*args, **kwargs):
+        raise RuntimeError("Neo4j query is not configured.")
+
+    monkeypatch.setattr(evidence, "search_evidence", fail_search)
+
+    client = TestClient(app)
+    response = client.post(
+        "/v1/evidence/search",
+        json={"query": "conversion", "project_id": "1"},
+    )
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["status"] == "failed"
+    assert body["errors"][0]["code"] == "kag_query_failed"

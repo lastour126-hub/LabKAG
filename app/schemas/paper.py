@@ -26,5 +26,6 @@ class QueryLiteratureRequest(BaseModel):
 class SearchEvidenceRequest(BaseModel):
     query: str
     project_id: str | None = None
+    paper_id: str | None = None
     entity_types: list[str] = Field(default_factory=list)
     top_k: int = Field(default=10, ge=1, le=100)
