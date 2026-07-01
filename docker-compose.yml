@@ -1,0 +1,34 @@
+services:
+  labkag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        LABKAG_DEPS_IMAGE: ${LABKAG_DEPS_IMAGE:-labkag-deps:py310}
+    container_name: ${LABKAG_CONTAINER_NAME:-labkag-api}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NEO4J_URI: bolt://host.docker.internal:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-labkagneo4j}
+      NEO4J_DATABASE: ${NEO4J_DATABASE:-neo4j}
+      GRAPH_BACKEND: ${GRAPH_BACKEND:-neo4j}
+      ENABLE_EMBEDDING: ${ENABLE_EMBEDDING:-false}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${LABKAG_API_PORT:-8000}:8000"
+    volumes:
+      - ./data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\"",
+        ]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s

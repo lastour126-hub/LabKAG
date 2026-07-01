@@ -34,6 +34,7 @@ logs/
 .vscode/
 .idea/
 .claude/
+.agent/
 
 # Local data and generated outputs
 data/ata_paper/
