@@ -80,6 +80,38 @@ def test_kag_client_returns_empty_answer_when_no_real_evidence_matches():
     assert result["evidence"] == []
 
 
+def test_kag_client_builds_query_store_from_primary_neo4j_settings(monkeypatch):
+    from app.config import settings
+
+    created = {}
+
+    class FakeNeo4jQueryStore:
+        def __init__(self, *, uri, user, password, database):
+            created.update(
+                {"uri": uri, "user": user, "password": password, "database": database}
+            )
+
+        def search_evidence(self, query, *, project_id=None, paper_id=None, top_k=10):
+            return []
+
+    monkeypatch.setattr(settings, "graph_backend", "neo4j")
+    monkeypatch.setattr(settings, "neo4j_uri", "bolt://new-host:7687")
+    monkeypatch.setattr(settings, "neo4j_user", "new-user")
+    monkeypatch.setattr(settings, "neo4j_password", "new-password")
+    monkeypatch.setattr(settings, "neo4j_database", "new-db")
+    monkeypatch.setattr("app.adapters.kag_client.Neo4jQueryStore", FakeNeo4jQueryStore)
+
+    client = KAGClient(mock=False)
+    client.search_evidence("conversion")
+
+    assert created == {
+        "uri": "bolt://new-host:7687",
+        "user": "new-user",
+        "password": "new-password",
+        "database": "new-db",
+    }
+
+
 def test_query_adapter_passes_request_scope_to_kag_client(monkeypatch):
     calls = []
 

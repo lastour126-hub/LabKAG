@@ -76,15 +76,15 @@ class KAGClient:
     def _query_store(self) -> Any:
         if self.query_store is not None:
             return self.query_store
-        if settings.openspg_write_backend != "neo4j":
-            raise RuntimeError("Real KAG query requires OPENSPG_WRITE_BACKEND=neo4j for v0.1.")
-        if not settings.openspg_neo4j_password:
-            raise RuntimeError("OPENSPG_NEO4J_PASSWORD is required for real KAG query.")
+        if settings.graph_backend != "neo4j":
+            raise RuntimeError("Real KAG query requires GRAPH_BACKEND=neo4j for v0.1.")
+        if not settings.neo4j_password:
+            raise RuntimeError("NEO4J_PASSWORD is required for real KAG query.")
         self.query_store = Neo4jQueryStore(
-            uri=settings.openspg_neo4j_uri,
-            user=settings.openspg_neo4j_user,
-            password=settings.openspg_neo4j_password,
-            database=settings.openspg_neo4j_database,
+            uri=settings.neo4j_uri,
+            user=settings.neo4j_user,
+            password=settings.neo4j_password,
+            database=settings.neo4j_database,
         )
         return self.query_store
 

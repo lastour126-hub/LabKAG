@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 
-from app.adapters.openspg_client import OpenSPGClientError, openspg_client
-from app.adapters.openspg_mapper import map_extraction_to_graph
+from app.adapters.graph_client import GraphWriteError, graph_client
+from app.adapters.graph_mapper import map_extraction_to_graph
 from app.config import settings
 from app.schemas.common import SkillMetadata
 from app.schemas.errors import ErrorCode, SkillError
@@ -108,7 +108,11 @@ def extract_paper(request: ExtractPaperRequest) -> SkillResponse:
 def ingest_paper(request: IngestPaperRequest) -> SkillResponse:
     graph_payload = map_extraction_to_graph(request.paper_extraction)
     try:
-        result = openspg_client.write_graph(graph_payload, confirm=request.confirm)
-    except OpenSPGClientError as exc:
-        raise error_response(502, ErrorCode.OPENSPG_WRITE_FAILED, str(exc)) from exc
+        result = graph_client.write_graph(
+            graph_payload,
+            confirm=request.confirm,
+            project_id=request.project_id,
+        )
+    except GraphWriteError as exc:
+        raise error_response(502, ErrorCode.GRAPH_WRITE_FAILED, str(exc)) from exc
     return success_response(data=result, project_id=request.project_id)

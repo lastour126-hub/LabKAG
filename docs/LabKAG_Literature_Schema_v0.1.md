@@ -148,6 +148,6 @@ to a paper or is supported by evidence from the source text. More specialized
 entities should be added only after there is a stable query or downstream
 workflow that needs them.
 
-OpenSPG KGDSL requires lowerCamelCase property and relation names. LabKAG's
+LabKAG graph payload uses lowerCamelCase property and relation names. LabKAG's
 internal extraction JSON may still use snake_case Pydantic fields; the adapter
 owns the mapping into KAG-compatible schema names.

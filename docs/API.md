@@ -75,62 +75,18 @@ such as `extraction_failed`.
 ```
 
 When `confirm=false`, ingest performs a dry run. When `confirm=true`, the service
-uses the configured OpenSPG adapter. In development mode it may return local mock
-statistics; in remote mode write failures return `openspg_write_failed`.
+uses the configured graph backend. In development mode it may return local mock
+statistics; in real mode graph write failures return `graph_write_failed`.
 
-For current OpenSPG container images, many `/v1` endpoints require cookie login.
-The adapter can log in before remote writes when these settings are provided:
-
-```env
-OPENSPG_ACCOUNT=openspg
-OPENSPG_PASSWORD=openspg123
-```
-
-The adapter hashes the password as `SHA256(raw_password + "OPENSPG")`, matching
-the OpenSPG web login flow. The actual data write endpoint is still being
-validated; `/api/graph/write` is not present in the current local image.
-
-## Apply Literature Schema
-
-The v0.1 literature schema is applied through OpenSPG's KGDSL endpoint:
-
-```text
-GET  /v1/schemas/getSchemaScript?projectId=1
-POST /v1/schemas
-```
-
-The adapter method is:
-
-```python
-OpenSPGClient(...).apply_literature_schema()
-```
-
-OpenSPG requires schema property and relation names to use lowerCamelCase. The
-applied relation names are:
-
-```text
-proposes
-uses
-hasCondition
-measures
-reports
-drawsConclusion
-hasEvidence
-supportedBy
-```
-
-For the current local closed loop, use the Neo4j graph-store backend from the
-OpenSPG compose deployment:
+The default v0.1 real backend is Neo4j:
 
 ```env
 MOCK_KAG=false
-OPENSPG_WRITE_BACKEND=neo4j
-OPENSPG_PROJECT_ID=1
-OPENSPG_PROJECT_NAME=LabKAG
-OPENSPG_NEO4J_URI=neo4j://127.0.0.1:7687
-OPENSPG_NEO4J_USER=neo4j
-OPENSPG_NEO4J_PASSWORD=openspgneo4j
-OPENSPG_NEO4J_DATABASE=neo4j
+GRAPH_BACKEND=neo4j
+NEO4J_URI=bolt://127.0.0.1:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=labkagneo4j
+NEO4J_DATABASE=neo4j
 ```
 
 With this backend, `confirm=true` writes the LabKAG extraction graph into Neo4j
@@ -151,20 +107,18 @@ Paper -> Method / Material / Condition / Metric / Result / Conclusion / Evidence
 Extracted objects -> Evidence
 ```
 
-The official OpenSPG REST data write path is still being validated separately.
-
-When `OPENSPG_PROJECT_NAME` is configured, the adapter checks
-`GET /v1/projects/list` before remote writes. If the project does not exist, the
-request fails with `openspg_write_failed` and a message such as:
+The applied relation names are:
 
 ```text
-OpenSPG project not found: LabKAG. Create it in OpenSPG before real writes.
+proposes
+uses
+hasCondition
+measures
+reports
+drawsConclusion
+hasEvidence
+supportedBy
 ```
-
-Current local OpenSPG images require a configured vectorizer/embedding model
-before a project can be created from the OpenSPG UI or API. The local `LabKAG`
-project has been created with an OpenAI-compatible embedding model and can be
-found through `GET /v1/projects/list`.
 
 ## Query Literature
 
@@ -179,8 +133,8 @@ found through `GET /v1/projects/list`.
 }
 ```
 
-When `MOCK_KAG=false` and `OPENSPG_WRITE_BACKEND=neo4j`, this endpoint searches
-matching `Evidence` nodes from the Neo4j graph-store and builds:
+When `MOCK_KAG=false` and `GRAPH_BACKEND=neo4j`, this endpoint searches matching
+`Evidence` nodes from Neo4j and builds:
 
 ```text
 answer
@@ -189,8 +143,6 @@ reasoning_path
 confidence
 evidence
 ```
-
-The first M6 version does not use the OpenSPG built-in dialog system.
 
 ## Search Evidence
 

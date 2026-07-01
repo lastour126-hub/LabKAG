@@ -1,491 +1,222 @@
-# LabKAG v0.1 实现计划
+# LabKAG v0.1 Plan
 
-## 当前总体状态
+## 1. 当前基线
 
-LabKAG v0.1 已经完成第一版 FastAPI Skill Server、PDF 文本解析、LLM/Mock 文献抽取、Evidence 绑定、OpenSPG 容器底座和 M5 适配层雏形。
+LabKAG v0.1 当前是 **Neo4j-only KAG Skill Server**。运行链路如下：
 
-当前重点推进 M5：把 LabKAG 的结构化文献知识真正写入 OpenSPG/KAG，而不是停留在本地 graph payload 和 mock 统计。
+```text
+PDF 上传
+-> PDF 文本解析与 chunk
+-> LLM / Mock 文献抽取
+-> Evidence 绑定
+-> LabKAG 图结构映射
+-> Neo4j 入图
+-> Evidence 检索
+-> 文献问答
+```
 
----
+当前运行流程只依赖：
 
-## M1：Skill Server 骨架
+```text
+FastAPI
+Python 3.10
+LLM API，可选；mock fallback 可控
+Neo4j
+```
 
-目标是先让服务跑起来。
+当前图后端配置：
 
-包括：
+```env
+MOCK_KAG=false
+GRAPH_BACKEND=neo4j
+NEO4J_URI=bolt://127.0.0.1:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=labkagneo4j
+NEO4J_DATABASE=neo4j
+```
+
+当前本地部署：
+
+```powershell
+docker compose -f deploy\neo4j\docker-compose.yml up -d
+```
+
+当前闭环验证：
+
+```powershell
+py -3.10 scripts\verify_m8_neo4j_closed_loop.py
+```
+
+## 2. 已完成能力
+
+### M1 Skill Server
+
+已完成：
 
 ```text
 FastAPI 项目
-配置读取
-统一返回格式
 /health
-OpenAPI 文档
-基础错误响应
+统一 SkillResponse
+统一错误响应
+配置读取
 ```
 
-当前状态：已完成。
+### M2 PDF 上传与解析
 
----
-
-## M2：文献上传与解析
-
-目标是让系统能够接收 PDF，并把 PDF 转成可处理文本。
-
-包括：
+已完成：
 
 ```text
 POST /v1/papers/upload
 PDF 文件保存
-PDF 文本解析
+PyMuPDF 文本解析
 pages 生成
 chunks 生成
 page / chunk_id 保留
 ```
 
-当前状态：已完成第一版。
-
-限制：
+当前限制：
 
 ```text
-支持文本型 PDF
+仅支持文本型 PDF
 暂不支持 OCR
 暂不支持复杂表格理解
 暂不支持图片理解
 ```
 
----
-
-## M3：文献结构化抽取
-
-目标是从论文文本中抽取结构化知识。
-
-包括：
-
-```text
-论文标题、作者、年份、摘要
-方法
-材料
-实验条件
-指标
-结果
-结论
-Evidence
-```
-
-当前状态：已完成第一版。
-
-实现情况：
-
-```text
-支持 OpenAI-compatible Chat Completions LLM 抽取
-支持 ALLOW_MOCK_EXTRACTOR 控制 mock fallback
-LLM 抽取异常统一转换为 extraction_failed
-extract_level=mock 可显式走 mock 抽取
-```
-
----
-
-## M4：Evidence 绑定
-
-目标是保证结果和结论都有来源。
-
-包括：
-
-```text
-page
-chunk_id
-section_title
-source_text
-```
-
-规则：
-
-```text
-没有 Evidence 的 Result / Conclusion 不能当成确定事实
-缺少 Evidence 时标记 needs_review
-```
-
-当前状态：已完成第一版。
-
----
-
-## M5：OpenSPG/KAG Adapter
-
-目标是把抽取结果转换成 OpenSPG/KAG 可写入的实体和关系，并完成真实入图闭环。
-
-### 已完成
-
-```text
-deploy/openspg/docker-compose.yml
-OpenSPG MySQL / Neo4j / Server 三容器启动
-OpenSPGClient mock / remote 模式
-OpenSPG mapper 中间 graph payload
-Neo4jGraphStore 最小真实图写入后端
-OpenSPG 写入异常统一为 openspg_write_failed
-HTTP 200 但 success=false 的 OpenSPG 业务失败识别
-```
-
-当前容器验证结果：
-
-```text
-labkag-mysql healthy
-labkag-neo4j healthy
-labkag-server healthy
-http://localhost:8887/ 返回 HTTP 200
-```
-
-### 闭环验证结论
-
-已用最小 PaperExtractionResult 跑过真实写入尝试：
-
-```text
-未登录访问 /api/graph/write：
-返回 success=false, errorCode=LOGIN_0002
-
-登录后访问 /api/graph/write：
-返回 404 Not Found
-
-Neo4j closed_loop 测试节点数量：
-0
-```
-
-结论：
-
-```text
-OpenSPG 服务本身可用
-LabKAG graph payload 生成正常
-OPENSPG_WRITE_PATH=/api/graph/write 不是当前 OpenSPG 镜像的真实写入接口
-M5 不能继续按通用 graph write API 假设实现
-```
-
-### 下一步实现计划
-
-#### M5.1：反查当前 OpenSPG 镜像真实 API
-
-目标是确定项目、Schema、数据写入的真实接口和请求格式。
-
-已发现的前端接口包括：
-
-```text
-/v1/accounts/login
-/v1/projects
-/v1/projects/list
-/v1/schemas
-/v1/schemas/tree/{projectId}
-/v1/schemas/getSchemaScript
-/v1/schemas/getSchemaNameMap
-/v1/datas/search
-/v1/datas/getEntityDetail
-/v1/datas/getOneHopGraph
-```
-
-需要继续确认：
-
-```text
-创建项目接口参数
-创建/更新 Schema 接口参数
-实体数据导入接口
-关系数据导入接口
-是否需要 builder job 或 schema release
-```
-
-#### M5.2：实现 OpenSPG 登录 client
-
-当前镜像使用 cookie 登录，不是 Bearer token。
-
-需要实现：
-
-```text
-POST /v1/accounts/login
-密码规则：SHA256(raw_password + "OPENSPG")
-复用 OPEN_SPG_TOKEN cookie
-请求失败时返回 openspg_write_failed
-```
-
-当前状态：已完成。
-
-已验证：
-
-```text
-OpenSPGClient 默认使用 requests.Session()
-登录后可以保留 OPEN_SPG_TOKEN cookie
-GET /v1/projects/list 可正常调用
-GET /v1/configs/KAG_ENV/version/1 可正常调用
-```
-
-建议新增配置：
-
-```env
-OPENSPG_ACCOUNT=openspg
-OPENSPG_PASSWORD=openspg123
-```
-
-说明：`openspg123` 是当前本地 Docker 测试库中临时重置的密码，不应写死到代码里。
-
-#### M5.3：实现项目与 Schema 初始化
-
-把 M5 从单一 `write_graph()` 拆成：
-
-```text
-ensure_project()
-ensure_schema()
-write_extraction()
-```
-
-当前状态：进行中。
+### M3 文献结构化抽取
 
 已完成：
 
 ```text
-list_projects()
-find_project_by_name()，兼容 OpenSPG 返回 records/data 两种分页字段
-ensure_project()
-get_config("KAG_ENV")
-远程写入前按 OPENSPG_PROJECT_NAME 检查项目是否存在
+OpenAI-compatible Chat Completions 抽取
+ALLOW_MOCK_EXTRACTOR 控制 mock fallback
+extract_level=mock 显式 mock 抽取
+LLM 抽取异常统一转换为 extraction_failed
 ```
 
-本地验证结果：
-
-```text
-/v1/model/list/ 已能读取 OpenAI text-embedding-3-large embedding 模型
-已通过 POST /v1/projects 创建 LabKAG 项目
-/v1/projects/list 当前 total=1
-/v1/projects/1 返回 success=true
-/v1/schemas/tree/1 返回 success=true
-/v1/schemas/graph/1 返回 success=true
-/v1/configs/KAG_ENV/version/1 存在 graph_store 和 prompt
-```
-
-当前剩余问题：
-
-```text
-项目层已打通，最小图数据可通过 Neo4j graph-store 后端真实写入
-OPENSPG_WRITE_PATH=/api/graph/write 仍然不是当前镜像的真实写入接口
-OpenSPG 官方 Schema 初始化已通过 POST /v1/schemas 的 KGDSL 路径打通
-OpenSPG 官方数据写入接口仍需继续验证
-```
-
-目标：
-
-```text
-确保存在 LabKAG 项目
-确保存在 v0.1 文献 schema：已完成
-确保 schema 可用于 OpenSPG schema graph 查询：已完成
-```
-
-Schema 应用验证结果：
-
-```text
-POST /v1/schemas 返回 success=true
-/v1/schemas/getSchemaScript 可看到 Paper / Method / Material / Condition / Metric / Result / Conclusion / Evidence
-/v1/schemas/graph/1 可看到 8 类实体
-/v1/schemas/graph/1 可看到 13 条关系：
-proposes / uses / hasCondition / measures / reports / drawsConclusion / hasEvidence / supportedBy
-```
-
-建议新增配置：
-
-```env
-OPENSPG_PROJECT_ID=
-OPENSPG_PROJECT_NAME=LabKAG
-OPENSPG_NAMESPACE=LabKAG
-```
-
-#### M5.4：实现最小实体写入
-
-先不要一次性写完整 schema。
-
-当前状态：已完成。
-
-第一步只写：
+当前抽取对象：
 
 ```text
 Paper
-Evidence
-Paper -> Evidence
-```
-
-实现方式：
-
-```text
-OPENSPG_WRITE_BACKEND=neo4j
-Neo4jGraphStore 直连 OpenSPG compose 中的 Neo4j graph-store
-OpenSPGClient 仍会先登录 OpenSPG 并检查 LabKAG 项目存在
-```
-
-真实闭环验证结果：
-
-```text
-POST /v1/papers/ingest confirm=true 返回 HTTP 200
-返回 entities_created=2, relations_created=1, evidence_created=1
-Neo4j 查询确认存在：
-paper_closed_loop_api_001 -[:hasEvidence]-> ev_closed_loop_api_001
-project_id=1
-mock=false
-```
-
-验收标准：
-
-```text
-ingest_paper(confirm=true) 返回 success：已完成
-Neo4j 查询能看到 paper_closed_loop_* 测试数据：已完成
-重复写入通过 MERGE 保持同 id 幂等：已完成
-```
-
-#### M5.5：扩展完整文献图谱
-
-在最小闭环成功后扩展：
-
-当前状态：已完成。
-
-```text
 Method
 Material
 Condition
 Metric
 Result
 Conclusion
-supportedBy Evidence 关系
+Evidence
 ```
 
-真实闭环验证结果：
-
-```text
-POST /v1/papers/ingest confirm=true 返回 HTTP 200
-返回 entities_created=8, relations_created=13, evidence_created=1
-Neo4j 查询确认存在实体：
-Paper / Method / Material / Condition / Metric / Result / Conclusion / Evidence
-Neo4j 查询确认存在关系：
-proposes / uses / hasCondition / measures / reports / drawsConclusion / hasEvidence / supportedBy
-```
-
-保留当前 LabKAG 中间格式：
-
-```text
-PaperExtractionResult
--> LabKAG GraphPayload
--> OpenSPG Schema/Data Payload
-```
-
-不要让 LLM 直接输出 OpenSPG 底层格式。
-
-#### M5.6：真实端到端测试
-
-需要新增测试或脚本：
-
-```text
-OpenSPG 登录测试
-项目存在性检查
-Schema 初始化测试
-最小 Paper + Evidence 入图测试
-入图后查询验证
-业务失败 success=false 的错误转换测试
-```
-
----
-
-## M6：文献问答与证据检索
-
-目标是对已入库文献做 KAG 查询。
-
-包括：
-
-```text
-POST /v1/literature/query
-POST /v1/evidence/search
-answer + evidence
-matched_entities
-confidence
-reasoning_path
-```
-
-当前状态：第一版 Neo4j 查询闭环已完成并通过真实容器验证。
+### M4 Evidence 绑定
 
 已完成：
 
 ```text
-MOCK_KAG=true 时保留 mock 查询
-MOCK_KAG=false 且 OPENSPG_WRITE_BACKEND=neo4j 时走真实 Neo4j 图查询
-/v1/evidence/search 支持按 Evidence.source_text 检索
-/v1/evidence/search 支持 project_id / paper_id / top_k
-/v1/literature/query 基于匹配 Evidence 生成 answer / evidence / related_entities / reasoning_path / confidence
-查询异常统一转换为 kag_query_failed
-Cypher 查询先过滤 Evidence，再匹配 Paper，避免 paper_id/query 过滤被 OPTIONAL MATCH 放宽
+page
+chunk_id
+section_title
+source_text
+needs_review
 ```
 
-真实闭环验证结果：
+规则：
 
 ```text
-Docker 恢复后，labkag-mysql / labkag-neo4j / labkag-server 均可用
+Result / Conclusion 必须绑定 Evidence 才能作为确定事实
+缺少 Evidence 时标记 needs_review
+```
 
-POST /v1/papers/ingest
-写入 m6_closed_loop_paper_001 / m6_closed_loop_ev_001
-返回 HTTP 200
-返回 entities_created=3, relations_created=3, evidence_created=1, mock=false
+### M5 Neo4j 入图
 
+已完成：
+
+```text
+app/adapters/graph_mapper.py
+app/adapters/graph_client.py
+app/adapters/graph_store_factory.py
+app/adapters/neo4j_graph_store.py
+POST /v1/papers/ingest confirm=true
+request.project_id 写入节点和关系
+MERGE 幂等写入
+graph_write_failed
+```
+
+当前图模型：
+
+```text
+Paper
+Method
+Material
+Condition
+Metric
+Result
+Conclusion
+Evidence
+
+Paper -> Method / Material / Condition / Metric / Result / Conclusion / Evidence
+Method / Material / Condition / Metric / Result / Conclusion -> Evidence
+```
+
+### M6 Evidence 检索与文献问答
+
+已完成：
+
+```text
 POST /v1/evidence/search
-请求 query="95% conversion", project_id="1", paper_id="m6_closed_loop_paper_001"
-返回 HTTP 200
-返回 evidence=["m6_closed_loop_ev_001"]
-
 POST /v1/literature/query
-请求 question="95% conversion", project_id="1", paper_id="m6_closed_loop_paper_001"
-返回 HTTP 200
-返回 answer="M6 closed loop evidence reports 95% conversion for catalyst A."
-返回 evidence=["m6_closed_loop_ev_001"]
+Neo4jQueryStore
+Evidence.source_text 关键词检索
+project_id / paper_id / top_k 过滤
+answer / evidence / related_entities / reasoning_path / confidence
+kag_query_failed
 ```
 
 当前限制：
 
 ```text
-第一版 answer 是基于证据原文的朴素拼接，不调用 OpenSPG 自带对话系统
-暂未接 OpenSPG 官方 /v1/datas/search 语义检索
+answer 是证据原文拼接
+检索是关键词匹配
+尚未支持 embedding / vector search
+尚未支持 LLM answer synthesis
 ```
 
----
+### M7-M8 交付整理与 Neo4j-only 清理
 
-## M7：示例、测试与文档
-
-目标是让项目可运行、可验证、可交接。
-
-包括：
+已完成：
 
 ```text
-examples/
-tests/
-README.md
+Readme.md
 docs/API.md
+docs/LabKAG_v0.1.md
 docs/LabKAG_Literature_Schema_v0.1.md
-pytest
-ruff
-OpenSPG 本地部署说明
-真实闭环验证脚本
+.env.example
+deploy/neo4j/docker-compose.yml
+scripts/verify_m8_neo4j_closed_loop.py
+pytest / ruff
 ```
 
-当前状态：持续补充中。
-
----
-
-## 2026-07-01 M7 整理更新
-
-当前状态：第一轮整理完成，已把第一版闭环沉淀成可交接资产。
-
-已补充：
+## 3. 当前 API
 
 ```text
-scripts/verify_m7_closed_loop.py
-tests/test_m7_verify_script.py
-Readme.md 本地部署、真实 Neo4j 闭环、M7 验证说明
+GET  /health
+POST /v1/papers/upload
+POST /v1/papers/extract
+POST /v1/papers/ingest
+GET  /v1/papers/{paper_id}/knowledge
+POST /v1/evidence/search
+POST /v1/literature/query
 ```
 
-M7 验证脚本覆盖：
+## 4. 当前验收标准
 
 ```text
-/health
-OpenSPG LabKAG 文献 schema 应用
-/v1/papers/ingest confirm=true
-/v1/evidence/search project_id + paper_id 过滤
-/v1/literature/query project_id + paper_id 过滤
+只启动 Neo4j
+POST /v1/papers/ingest confirm=true 成功
+POST /v1/evidence/search 能搜到 Evidence
+POST /v1/literature/query 能返回 answer + evidence
+pytest 全通过
+ruff 全通过
+Neo4j-only closed loop 通过
 ```
 
 验收命令：
@@ -493,13 +224,140 @@ OpenSPG LabKAG 文献 schema 应用
 ```powershell
 py -3.10 -m pytest -q
 py -3.10 -m ruff check .
-py -3.10 scripts\verify_m7_closed_loop.py
+py -3.10 scripts\verify_m8_neo4j_closed_loop.py
 ```
 
-当前验证结果：
+最近一次验证结果：
 
 ```text
-pytest: 51 passed
+pytest: 39 passed
 ruff: All checks passed
-M7 closed loop verification: passed
+Neo4j-only closed loop: passed
+```
+
+## 5. 下一阶段：M9 Embedding 与向量检索
+
+目标：把当前关键词检索升级为语义检索，并为更可靠的文献问答打基础。
+
+### M9.1 Embedding 配置
+
+新增配置：
+
+```env
+ENABLE_EMBEDDING=false
+EMBEDDING_BASE_URL=https://api.openai.com/v1
+EMBEDDING_API_KEY=
+EMBEDDING_MODEL=text-embedding-3-large
+EMBEDDING_DIM=3072
+EMBEDDING_TIMEOUT_SECONDS=60
+```
+
+验收：
+
+```text
+ENABLE_EMBEDDING=false 时现有流程不变
+ENABLE_EMBEDDING=true 但缺少 API key 时返回明确错误
+```
+
+### M9.2 EmbeddingProvider
+
+计划新增：
+
+```text
+app/adapters/embedding_client.py
+tests/test_embedding_client.py
+```
+
+职责：
+
+```text
+调用 OpenAI-compatible embeddings API
+输入文本列表
+返回 vector list
+统一处理超时、HTTP 错误、维度不匹配
+```
+
+### M9.3 Evidence embedding 写入
+
+计划修改：
+
+```text
+app/adapters/neo4j_graph_store.py
+app/services/skill_orchestrator.py
+```
+
+策略：
+
+```text
+第一版只给 Evidence.source_text 生成 embedding
+embedding 写入 Evidence.embedding
+同时写入 embedding_model / embedding_dim
+未启用 embedding 时不写向量
+```
+
+### M9.4 Neo4j vector index
+
+计划新增：
+
+```text
+app/adapters/neo4j_vector_store.py
+scripts/init_neo4j_vector_index.py
+```
+
+索引目标：
+
+```text
+Evidence.embedding
+cosine similarity
+维度来自 EMBEDDING_DIM
+```
+
+### M9.5 Hybrid retrieval
+
+计划修改：
+
+```text
+app/adapters/neo4j_query_store.py
+app/adapters/kag_client.py
+```
+
+检索策略：
+
+```text
+keyword search 保留
+vector search 新增
+合并去重
+project_id / paper_id 过滤保持一致
+top_k 控制最终返回数量
+```
+
+### M9.6 LLM answer synthesis
+
+计划新增：
+
+```text
+app/services/answer_synthesizer.py
+tests/test_answer_synthesizer.py
+```
+
+第一版要求：
+
+```text
+只基于召回 Evidence 生成回答
+回答必须保留 evidence 引用
+没有 Evidence 时返回 No matching evidence found.
+LLM 失败时可退回证据原文拼接
+```
+
+## 6. 暂不做
+
+```text
+OCR
+复杂表格理解
+图片理解
+前端 UI
+权限系统
+多租户
+全图所有实体 embedding
+复杂 agentic reasoning
 ```

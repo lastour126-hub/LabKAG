@@ -10,7 +10,7 @@ class ErrorCode(str, Enum):
     EXTRACTION_FAILED = "extraction_failed"
     SCHEMA_VALIDATION_FAILED = "schema_validation_failed"
     EVIDENCE_BINDING_FAILED = "evidence_binding_failed"
-    OPENSPG_WRITE_FAILED = "openspg_write_failed"
+    GRAPH_WRITE_FAILED = "graph_write_failed"
     KAG_QUERY_FAILED = "kag_query_failed"
     INTERNAL_ERROR = "internal_error"
 

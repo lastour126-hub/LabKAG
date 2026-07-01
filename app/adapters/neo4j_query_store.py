@@ -56,7 +56,7 @@ class Neo4jQueryStore:
             from neo4j import GraphDatabase
         except ImportError as exc:
             raise Neo4jGraphStoreError(
-                "neo4j package is required for OPENSPG_WRITE_BACKEND=neo4j."
+                "neo4j package is required when GRAPH_BACKEND=neo4j."
             ) from exc
         return GraphDatabase.driver(uri, auth=auth)
 

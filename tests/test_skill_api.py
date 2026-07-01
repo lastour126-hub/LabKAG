@@ -182,14 +182,14 @@ def test_mock_ingest_query_search_and_knowledge_routes():
     assert "paper" in knowledge.json()["data"]
 
 
-def test_ingest_returns_openspg_write_failed_when_client_fails(monkeypatch):
-    from app.adapters.openspg_client import OpenSPGClientError
+def test_ingest_returns_graph_write_failed_when_client_fails(monkeypatch):
+    from app.adapters.graph_client import GraphWriteError
     from app.services import skill_orchestrator
 
     def fail_write(*args, **kwargs):
-        raise OpenSPGClientError("OpenSPG write failed with HTTP 500: server error")
+        raise GraphWriteError("Neo4j write failed: server error")
 
-    monkeypatch.setattr(skill_orchestrator.openspg_client, "write_graph", fail_write)
+    monkeypatch.setattr(skill_orchestrator.graph_client, "write_graph", fail_write)
 
     client = TestClient(app)
     response = client.post(
@@ -204,7 +204,7 @@ def test_ingest_returns_openspg_write_failed_when_client_fails(monkeypatch):
     assert response.status_code == 502
     body = response.json()
     assert body["status"] == "failed"
-    assert body["errors"][0]["code"] == "openspg_write_failed"
+    assert body["errors"][0]["code"] == "graph_write_failed"
 
 
 def test_literature_query_returns_kag_query_failed_when_adapter_fails(monkeypatch):

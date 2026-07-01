@@ -1,7 +1,7 @@
 # LabKAG
 
 LabKAG v0.1 is a Skill-first FastAPI service for literature knowledge extraction,
-evidence binding, and configurable OpenSPG/KAG integration.
+evidence binding, Neo4j graph storage, and KAG-style literature querying.
 
 ## Quickstart
 
@@ -20,10 +20,16 @@ py -3.10 -m pytest -v
 py -3.10 -m ruff check .
 ```
 
-Run the local closed-loop verification after the OpenSPG compose stack is up:
+Run Neo4j for the local graph backend:
 
 ```powershell
-py -3.10 scripts\verify_m7_closed_loop.py
+docker compose -f deploy\neo4j\docker-compose.yml up -d
+```
+
+Run the local closed-loop verification after Neo4j is up:
+
+```powershell
+py -3.10 scripts\verify_m8_neo4j_closed_loop.py
 ```
 
 ## v0.1 Scope
@@ -37,9 +43,8 @@ Implemented in this first framework pass:
 - Mock paper extraction
 - OpenAI-compatible LLM extraction path for M3
 - Evidence binding validation
-- Configurable OpenSPG/KAG adapter for M5
-- Literature schema application through OpenSPG KGDSL
-- Real local graph writes through the OpenSPG Neo4j backend
+- Configurable graph/KAG adapter for M5
+- Real local graph writes through Neo4j
 - Evidence search and literature query over Neo4j for M6
 
 Not implemented yet:
@@ -47,8 +52,7 @@ Not implemented yet:
 - OCR
 - Authentication
 - Frontend UI
-- OpenSPG official data-write API integration
-- OpenSPG built-in conversation system integration
+- Embedding/vector retrieval
 
 ## LLM Extraction
 
@@ -66,68 +70,46 @@ missing, and also allows `extract_level=mock` for explicit mock extraction.
 Set it to `false` in stricter environments so missing LLM configuration returns
 `extraction_failed` instead of silently using mock data.
 
-## OpenSPG Ingest
+## Neo4j Graph Backend
 
 M5 maps `PaperExtractionResult` into graph entities and relations, including
-`supportedBy` evidence relations. By default `MOCK_KAG=true`, so ingest returns
-local write statistics without calling OpenSPG.
+`supportedBy` evidence relations. By default `MOCK_KAG=true`, so ingest and
+query calls return local mock results without touching Neo4j.
 
-For the current local closed loop, use the OpenSPG compose Neo4j backend:
+For the current local closed loop, use Neo4j directly:
 
 ```powershell
 $env:MOCK_KAG="false"
-$env:OPENSPG_BASE_URL="http://127.0.0.1:8887"
-$env:OPENSPG_ACCOUNT="openspg"
-$env:OPENSPG_PASSWORD="openspg123"
-$env:OPENSPG_PROJECT_ID="1"
-$env:OPENSPG_PROJECT_NAME="LabKAG"
-$env:OPENSPG_NAMESPACE="LabKAG"
-$env:OPENSPG_WRITE_BACKEND="neo4j"
-$env:OPENSPG_NEO4J_URI="neo4j://127.0.0.1:7687"
-$env:OPENSPG_NEO4J_USER="neo4j"
-$env:OPENSPG_NEO4J_PASSWORD="openspgneo4j"
-$env:OPENSPG_NEO4J_DATABASE="neo4j"
+$env:GRAPH_BACKEND="neo4j"
+$env:NEO4J_URI="bolt://127.0.0.1:7687"
+$env:NEO4J_USER="neo4j"
+$env:NEO4J_PASSWORD="labkagneo4j"
+$env:NEO4J_DATABASE="neo4j"
 ```
 
-`POST /v1/papers/ingest` only writes remotely when `confirm=true`.
-
-The HTTP write path remains configurable through `OPENSPG_WRITE_BACKEND=http`
-and `OPENSPG_WRITE_PATH`, but the current local OpenSPG image has not exposed a
-validated generic graph-write REST endpoint for LabKAG.
-
-## Local OpenSPG Backend
-
-The OpenSPG backend compose stack lives under `deploy/openspg/`:
-
-```powershell
-Copy-Item deploy\openspg\.env.example deploy\openspg\.env
-docker compose --env-file deploy\openspg\.env -f deploy\openspg\docker-compose.yml up -d
-```
+`POST /v1/papers/ingest` only writes to Neo4j when `confirm=true`.
 
 The root project does not use Docker Compose for the LabKAG API service yet.
 
-Expected local service endpoints:
+Neo4j-only service endpoints:
 
-- OpenSPG UI/API: `http://127.0.0.1:8887`
 - Neo4j Browser: `http://127.0.0.1:7474`
-- Neo4j Bolt: `neo4j://127.0.0.1:7687`
+- Neo4j Bolt: `bolt://127.0.0.1:7687`
 
-Default local credentials used by the compose stack:
+Default local Neo4j credentials:
 
-- OpenSPG: `openspg` / `openspg123`
-- Neo4j: `neo4j` / `openspgneo4j`
+- Neo4j: `neo4j` / `labkagneo4j`
 
-## M7 Handoff Check
+## M8 Handoff Check
 
-The M7 verification script performs the reproducible first-version closed loop:
+The M8 verification script performs the reproducible Neo4j-only closed loop:
 
 ```text
 health check
-apply LabKAG literature schema
 POST /v1/papers/ingest with confirm=true
 POST /v1/evidence/search scoped by project_id and paper_id
 POST /v1/literature/query scoped by project_id and paper_id
 ```
 
-It uses fixed `m7_closed_loop_*` IDs and is safe to run repeatedly because graph
+It uses fixed `m8_neo4j_only_*` IDs and is safe to run repeatedly because graph
 writes use idempotent Neo4j `MERGE` operations.
